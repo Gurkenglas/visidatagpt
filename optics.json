@@ -1,0 +1,23 @@
+[
+  {
+    "s": "file",
+    "t": "str",
+    "o": "lens.Lens(lambda filename: open(filename).read(), lambda filename, new: open(filename, 'w').write(new))"
+  },
+  { "s": "str", "t": "dicts", "o": "lens.Json()" },
+  {
+    "s": "dicts",
+    "t": "lists",
+    "o": "lens.Iso(lambda dicts: [list(dicts[0].keys())] + [list(row.values()) for row in dicts], lambda lists: [dict(zip(lists[0], row)) for row in lists][1:])"
+  },
+  {
+    "s": "yx",
+    "t": "rc",
+    "o": "lens.Iso(lambda yx: (yx[0], yx[1]//28), lambda yx: (yx[0], yx[1]*28))"
+  },
+  {
+    "s": "window",
+    "t": "yx",
+    "o": "lens.Lens(lambda w: w.getyx(),lambda w,yx: w.move(*yx))"
+  }
+]
