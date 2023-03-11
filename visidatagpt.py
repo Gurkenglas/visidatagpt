@@ -1,44 +1,54 @@
 import curses
 import sys
-from lenses.ui import BoundLens, UnboundLens
 from lenses import lens, bind
-import re
+import regex as re
 from typing import List
 import varname
 import json
 import inspect
 
-def regex(s : str, *args, **kwargs) -> UnboundLens[str, str, str, str]:
-    r = re.compile(s)
-    return lens.Lens(lambda string: r.search(string, *args, **kwargs).group(), lambda old, new: r.sub(new, old, *args, **kwargs))
-filetostring  = lens.Lens(lambda filename: open(filename).read(), lambda filename, new: open(filename, "w").write(new))
-stringtodicts = lens.Iso(json.loads, json.dumps)
-dictstolists  = lens.Iso(lambda dicts: [list(dicts[0].keys())] + [list(row.values()) for row in dicts], lambda lists: [dict(zip(lists[0], row)) for row in lists][1:])
-yxtorc        = lens.Iso(lambda yx: (yx[0], yx[1]//10), lambda yx: (yx[0], yx[1]*10))
+relens = lambda self: lens.Lens(lambda s: self.search(s).groups(), lambda old, new: self.sub(new, old))
 
 class CodeSheet(List[dict]):
     def __init__(self, dicts):
         name = varname.varname()
         self.dicts = dicts
-        filetojson = bind(__file__) & filetostring & regex(name + r" = CodeSheet\((\[.*\])\)", re.DOTALL) & stringtodicts
-        self.sheet = filetojson & dictstolists
+        self.sheet = bind(__file__) & plumb("file",str) & relens(re.compile(name + r" = CodeSheet\(\[(.*)\]\)", re.DOTALL))[0] & plumb(str,"lists")
 
-def optic(**kwargs):
-    o = (lens.Lens if len(inspect.signature(kwargs["backward"]).parameters) == 2 else lens.Iso)(kwargs["forward"], kwargs["backward"])
+def coderow(f, *args, **kwargs):
+    fkwargs = {}
+    for k in inspect.signature(f).parameters:
+        if k in kwargs:
+            fkwargs[k] = kwargs[k]
+        else:
+            if inspect.signature(f).parameters[k].default == inspect.Parameter.empty:
+                fkwargs[k] = args[0]
+                args = args[1:]
+    assert not args
+    result = f(**fkwargs)
     for k,v in kwargs.items():
-        setattr(o, k, v)
-    return o
+        if k not in inspect.signature(f).parameters:
+            result.__dict__[k] = v
+    return result
 
 optics = CodeSheet([
-    {"source":"file","target":"string","forward":lambda filename: open(filename).read(),"backward":lambda filename, new: open(filename, "w").write(new)},
-    {"source":"string","target":"dicts","forward":json.loads, "backward":json.dumps},
-    {"source":"dicts","target":"lists","forward":lambda dicts: [list(dicts[0].keys())] + [list(row.values()) for row in dicts], "backward":lambda lists: [dict(zip(lists[0], row)) for row in lists][1:]},
-    {"source":"yx","target":"rc","forward":lambda yx: (yx[0], yx[1]//10), "backward":lambda yx: (yx[0], yx[1]*10)},
+    coderow(lens.Lens, lambda filename: open(filename).read(), lambda filename, new: open(filename, "w").write(new), s="file", t=str),
+    coderow(lens.Iso, json.loads, json.dumps, s=str, t="dicts"),
+    coderow(lens.Iso, lambda dicts: [list(dicts[0].keys())] + [list(row.values()) for row in dicts], lambda lists: [dict(zip(lists[0], row)) for row in lists][1:], s="dicts", t="lists"),
+    coderow(lens.Iso, lambda yx: (yx[0], yx[1]//10), lambda yx: (yx[0], yx[1]*10), s="yx", t="rc"),
+    coderow(lens.Lens, lambda w: w.getyx(),lambda w,yx: w.move(*yx), s="window", t="yx"),
 ])
 
+def plumb(s, t):
+    for o in optics:
+        if o.s == s:
+            if o.t == t: return o
+            ott = plumb(o.t, t)
+            if ott: return o & ott
+
 def main(stdscr : curses.window):
-    rc = bind(stdscr).Lens(lambda w: w.getyx(),lambda w,yx: w.move(*yx)) & yxtorc
-    sheets = [bind(sys.argv[1]) & filetostring & stringtodicts & dictstolists]
+    rc = bind(stdscr) & plumb("window", "rc")
+    sheets = [optics.sheet]
     commandlog = []
     while True:
         r,c = rc.get()
