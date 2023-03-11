@@ -6,14 +6,17 @@ from typing import List
 import varname
 import json
 import inspect
+import lenses.ui as ui
+ui.BaseUiLens.__getattr__ = object.__getattribute__
+ui.UnboundLens.__getattr__ = object.__getattribute__
 
 relens = lambda self: lens.Lens(lambda s: self.search(s).groups(), lambda old, new: self.sub(new, old))
 
 class CodeSheet(List[dict]):
     def __init__(self, dicts):
-        name = varname.varname()
-        self.dicts = dicts
-        self.sheet = bind(__file__) & plumb("file",str) & relens(re.compile(name + r" = CodeSheet\(\[(.*)\]\)", re.DOTALL))[0] & plumb(str,"lists")
+        super().__init__(dicts)
+        self.name = varname.varname()
+    sheet = lambda self: bind(__file__) & plumb("file",str) & relens(re.compile(self.name + r" = CodeSheet\(\[(.*)\]\)", re.DOTALL))[0] & plumb(str,"lists")
 
 def coderow(f, *args, **kwargs):
     fkwargs = {}
@@ -28,7 +31,7 @@ def coderow(f, *args, **kwargs):
     result = f(**fkwargs)
     for k,v in kwargs.items():
         if k not in inspect.signature(f).parameters:
-            result.__dict__[k] = v
+            setattr(result, k, v)
     return result
 
 optics = CodeSheet([
