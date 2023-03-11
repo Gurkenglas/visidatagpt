@@ -2,17 +2,17 @@ import curses
 import sys
 from lenses import lens, bind
 import regex as re
-from typing import List, Generic
+from typing import List
 import varname
 import json
 
-relens = lambda self: lens.Lens(lambda s: self.search(s).groups(), lambda old, new: self.sub(new, old))
+relens = lambda self: lens.Lens(lambda s: self.search(s).group(0), lambda old, new: self.sub(new, old))
 
 class CodeSheet(List[dict]):
     def __init__(self, dicts):
         super().__init__(dicts)
         self.name = varname.varname()
-    sheet = lambda self: bind(__file__) & plumb("file","str") & relens(re.compile(self.name + r" = CodeSheet\((\[.*\])\)", re.DOTALL))[0] & plumb("str","lists")
+    sheet = lambda self: bind(__file__) & plumb("file","str") & relens(re.compile(r"(?<=" + self.name + r" = CodeSheet\()\[.*\](?=\))", re.DOTALL)) & plumb("str","lists")
 
 optics = CodeSheet([
     {"s":"file"  ,"t":"str"  ,"o":"lens.Lens(lambda filename: open(filename).read(), lambda filename, new: open(filename, 'w').write(new))"},
