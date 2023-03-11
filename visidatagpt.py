@@ -2,13 +2,9 @@ import curses
 import sys
 from lenses import lens, bind
 import regex as re
-from typing import List
+from typing import List, Generic
 import varname
 import json
-import inspect
-import lenses.ui as ui
-ui.BaseUiLens.__getattr__ = object.__getattribute__
-ui.UnboundLens.__getattr__ = object.__getattribute__
 
 relens = lambda self: lens.Lens(lambda s: self.search(s).groups(), lambda old, new: self.sub(new, old))
 
@@ -16,42 +12,27 @@ class CodeSheet(List[dict]):
     def __init__(self, dicts):
         super().__init__(dicts)
         self.name = varname.varname()
-    sheet = lambda self: bind(__file__) & plumb("file",str) & relens(re.compile(self.name + r" = CodeSheet\(\[(.*)\]\)", re.DOTALL))[0] & plumb(str,"lists")
-
-def coderow(f, *args, **kwargs):
-    fkwargs = {}
-    for k in inspect.signature(f).parameters:
-        if k in kwargs:
-            fkwargs[k] = kwargs[k]
-        else:
-            if inspect.signature(f).parameters[k].default == inspect.Parameter.empty:
-                fkwargs[k] = args[0]
-                args = args[1:]
-    assert not args
-    result = f(**fkwargs)
-    for k,v in kwargs.items():
-        if k not in inspect.signature(f).parameters:
-            setattr(result, k, v)
-    return result
+    sheet = lambda self: bind(__file__) & plumb("file","str") & relens(re.compile(self.name + r" = CodeSheet\((\[.*\])\)", re.DOTALL))[0] & plumb("str","lists")
 
 optics = CodeSheet([
-    coderow(lens.Lens, lambda filename: open(filename).read(), lambda filename, new: open(filename, "w").write(new), s="file", t=str),
-    coderow(lens.Iso, json.loads, json.dumps, s=str, t="dicts"),
-    coderow(lens.Iso, lambda dicts: [list(dicts[0].keys())] + [list(row.values()) for row in dicts], lambda lists: [dict(zip(lists[0], row)) for row in lists][1:], s="dicts", t="lists"),
-    coderow(lens.Iso, lambda yx: (yx[0], yx[1]//10), lambda yx: (yx[0], yx[1]*10), s="yx", t="rc"),
-    coderow(lens.Lens, lambda w: w.getyx(),lambda w,yx: w.move(*yx), s="window", t="yx"),
+    {"s":"file"  ,"t":"str"  ,"o":"lens.Lens(lambda filename: open(filename).read(), lambda filename, new: open(filename, 'w').write(new))"},
+    {"s":"str"   ,"t":"dicts","o":"lens.Iso(json.loads, json.dumps)"},
+    {"s":"dicts" ,"t":"lists","o":"lens.Iso(lambda dicts: [list(dicts[0].keys())] + [list(row.values()) for row in dicts], lambda lists: [dict(zip(lists[0], row)) for row in lists][1:])"},
+    {"s":"yx"    ,"t":"rc"   ,"o":"lens.Iso(lambda yx: (yx[0], yx[1]//10), lambda yx: (yx[0], yx[1]*10))"},
+    {"s":"window","t":"yx"   ,"o":"lens.Lens(lambda w: w.getyx(),lambda w,yx: w.move(*yx))"}
 ])
 
 def plumb(s, t):
-    for o in optics:
-        if o.s == s:
-            if o.t == t: return o
-            ott = plumb(o.t, t)
-            if ott: return o & ott
+    for d in optics:
+        o, os, ot = d["o"], d["s"], d["t"]
+        if s == os:
+            if t == ot: return eval(o)
+            ott = plumb(ot, t)
+            if ott: return eval(o) & ott
 
 def main(stdscr : curses.window):
     rc = bind(stdscr) & plumb("window", "rc")
-    sheets = [optics.sheet]
+    sheets = [optics.sheet()]
     commandlog = []
     while True:
         r,c = rc.get()
@@ -59,7 +40,7 @@ def main(stdscr : curses.window):
         rows = sheets[-1].get()
         for rindex, row in enumerate(rows):
             for cindex, cell in enumerate(row):
-                stdscr.addstr(*yxtorc.flip().get()((rindex,cindex)), str(cell))
+                stdscr.addstr(*plumb("yx","rc").flip().get()((rindex,cindex)), str(cell))
         rc.set((r,c))
         cell = sheets[-1][r][c]
         value = cell.get()
