@@ -38,20 +38,8 @@
   {
     "key": "u",
     "desc": "undo",
-    "do": "exec(lastcmd['undo'], globals(), lastcmd['locals'])",
-    "undo": "exec(lastcmd['do'], globals(), lastcmd['locals'])"
-  },
-  {
-    "key": "H",
-    "desc": "help",
-    "do": "openkeymap()",
-    "undo": "closekeymap()"
-  },
-  {
-    "key": "U",
-    "desc": "undo history",
-    "do": "opencommands()",
-    "undo": "closehelp"
+    "do": "exec(lastcmd['undo'])",
+    "undo": "exec(lastcmd['do'])"
   },
   {
     "key": "e",
