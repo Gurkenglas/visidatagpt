@@ -8,7 +8,7 @@
             "name": "Python: this",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "visidatagpt.py",
             "console": "integratedTerminal",
             "args": ["testfile.json"],
             "justMyCode": false
@@ -17,7 +17,7 @@
             "name": "Python: this, justmycode",
             "type": "python",
             "request": "launch",
-            "program": "${file}",
+            "program": "visidatagpt.py",
             "console": "integratedTerminal",
             "args": ["testfile.json"],
             "justMyCode": true
