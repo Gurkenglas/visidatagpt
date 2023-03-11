@@ -18,10 +18,10 @@
   },
   {
     "s": "yx",
-    "t": "rcx",
+    "t": "rc",
     "what": "Iso",
     "forward":"(yx[0], yx[1]//28)",
-    "backward":"(rcx[0], rcx[1]*28)"
+    "backward":"(rc[0], rc[1]*28)"
   },
   {
     "s": "window",

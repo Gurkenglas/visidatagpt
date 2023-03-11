@@ -20,30 +20,32 @@ def plumb(source, target):
             ott = plumb(t, target)
             if ott: return poptic & ott
 
-def sheet():
+def filesheet():
     return bind(f"{varname.varname()}.json") & plumb("file","dicts")
-optics = sheet()
-cmds = sheet()
+optics = filesheet()
+cmds = filesheet()
 
 @curses.wrapper
 def main(window : curses.window):
-    rc = bind(window) & plumb("window", "rcx")
-    sheets = [optics, cmds]
+    rc = bind(window) & plumb("window", "rc")
     commandlog = []
+    sheets = [optics, cmds]
     while True:
         r,c = rc.get()
-        view = sheets[-1] & plumb("dicts","lists")
+        sheet = sheets[-1]
+        view = sheet & plumb("dicts","lists")
         colwidths = [max(len(str(cell)) for cell in col) for col in zip(*view.get())]
+        window.clear()
         for rindex, row in enumerate(view.get()):
             for cindex, cell in enumerate(row):
-                window.addstr(*(bind((rindex,cindex)) & plumb("yx","rcx").flip()).get(), str(cell))
+                window.addstr(*(bind((rindex,cindex)) & plumb("yx","rc").flip()).get(), str(cell))
         rc.set((r,c))
         cell = view[r][c]
         value = cell.get()
+        lastcmd = commandlog[-1] if commandlog else None
         key = window.getkey()
         for cmd in cmds.get():
             if cmd["key"] == key:
-                cmd["locals"] = locals()
-                eval(cmd["do"])
+                exec(cmd["do"])
                 commandlog.append(cmd)
                 break

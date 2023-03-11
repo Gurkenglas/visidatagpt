@@ -31,9 +31,15 @@
   },
   {
     "key": "q",
-    "desc": "quit",
-    "do": "sys.exit(0)",
-    "undo": "print('Panic!')"
+    "desc": "close last sheet",
+    "do": "sheets.pop()",
+    "undo": "sheets.append(sheet)"
+  },
+  {
+    "key": "u",
+    "desc": "undo",
+    "do": "exec(lastcmd['undo'], globals(), lastcmd['locals'])",
+    "undo": "exec(lastcmd['do'], globals(), lastcmd['locals'])"
   },
   {
     "key": "H",
